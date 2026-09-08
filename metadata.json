@@ -1,0 +1,6 @@
+{
+  "name": "Servicio Técnico Compumeq",
+  "description": "Sistema ligero de Gestión de Servicio Técnico de Alta Densidad",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
