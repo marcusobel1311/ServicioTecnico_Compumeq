@@ -50,13 +50,13 @@ export default function FrequentEmailInput({
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Cargar datos
+  // Cargar datos (getTechnicians y getCustomEmails son ambos async/Supabase)
   const loadData = async () => {
     setLoading(true);
     try {
       const [techs, customs] = await Promise.all([
         frequentEmailsService.getTechnicians(),
-        Promise.resolve(frequentEmailsService.getCustomEmails()),
+        frequentEmailsService.getCustomEmails(),
       ]);
       setTechnicians(techs);
       setCustomEmails(customs);
@@ -73,9 +73,10 @@ export default function FrequentEmailInput({
     }
   }, [isOpen]);
 
+  // Suscripción Realtime: cuando cualquier equipo cambia la tabla, re-fetch para todos
   useEffect(() => {
     const unsubscribe = frequentEmailsService.subscribe(() => {
-      setCustomEmails(frequentEmailsService.getCustomEmails());
+      frequentEmailsService.getCustomEmails().then(setCustomEmails);
     });
     return () => unsubscribe();
   }, []);
@@ -108,7 +109,7 @@ export default function FrequentEmailInput({
     setEditingId(null);
   };
 
-  const handleCreateCustomEmail = (e?: React.SyntheticEvent) => {
+  const handleCreateCustomEmail = async (e?: React.SyntheticEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -121,10 +122,14 @@ export default function FrequentEmailInput({
       return;
     }
 
-    frequentEmailsService.addCustomEmail(trimmed, newLabel.trim());
-    setNewEmail('');
-    setNewLabel('');
-    setIsCreating(false);
+    try {
+      await frequentEmailsService.addCustomEmail(trimmed, newLabel.trim());
+      setNewEmail('');
+      setNewLabel('');
+      setIsCreating(false);
+    } catch {
+      setFormError('Error al guardar el correo. Intenta nuevamente.');
+    }
   };
 
   const handleStartEdit = (item: CustomFrequentEmail, e: React.MouseEvent) => {
@@ -135,7 +140,7 @@ export default function FrequentEmailInput({
     setIsCreating(false);
   };
 
-  const handleSaveEdit = (id: string, e?: React.SyntheticEvent) => {
+  const handleSaveEdit = async (id: string, e?: React.SyntheticEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -148,16 +153,24 @@ export default function FrequentEmailInput({
       return;
     }
 
-    frequentEmailsService.updateCustomEmail(id, trimmed, editLabel.trim());
-    setEditingId(null);
+    try {
+      await frequentEmailsService.updateCustomEmail(id, trimmed, editLabel.trim());
+      setEditingId(null);
+    } catch {
+      setFormError('Error al actualizar el correo. Intenta nuevamente.');
+    }
   };
 
-  const handleDeleteCustomEmail = (id: string, e: React.MouseEvent) => {
+  const handleDeleteCustomEmail = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm('¿Deseas eliminar este correo frecuente personalizado?')) {
-      frequentEmailsService.deleteCustomEmail(id);
-      if (editingId === id) {
-        setEditingId(null);
+      try {
+        await frequentEmailsService.deleteCustomEmail(id);
+        if (editingId === id) {
+          setEditingId(null);
+        }
+      } catch (err) {
+        console.error('Error al eliminar correo frecuente:', err);
       }
     }
   };

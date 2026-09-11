@@ -83,40 +83,27 @@ export const dbService = {
   // ── ORDERS ────────────────────────────────────────────────
 
   /**
-   * Obtiene el siguiente número correlativo e incremental de orden iniciando en '000000'.
+   * Obtiene el siguiente número de orden usando la sequence atómica de PostgreSQL.
+   * Llama a la función SQL `next_order_number()` vía RPC para garantizar
+   * que dos usuarios simultáneos nunca reciban el mismo número.
    */
   getNextOrderNumber: async (): Promise<string> => {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('order_number');
+    const { data, error } = await supabase.rpc('next_order_number');
 
     if (error) {
-      console.warn('getNextOrderNumber error:', error.message);
-      return '000000';
+      console.warn('getNextOrderNumber RPC error:', error.message);
+      // Fallback: buscar el máximo actual y sumar 1
+      const { data: fallbackData } = await supabase
+        .from('orders')
+        .select('order_number')
+        .order('order_number', { ascending: false })
+        .limit(1);
+      const last = fallbackData?.[0]?.order_number;
+      const lastNum = last && /^\d{6}$/.test(String(last)) ? parseInt(String(last), 10) : -1;
+      return String(lastNum + 1).padStart(6, '0');
     }
 
-    if (!data || data.length === 0) {
-      return '000000';
-    }
-
-    const orderNumbers = data
-      .map(row => String(row.order_number || '').trim())
-      .filter(n => /^\d{6}$/.test(n));
-
-    // Si aún no se ha creado la primera orden '000000', el inicio es '000000'
-    if (!orderNumbers.includes('000000')) {
-      return '000000';
-    }
-
-    const parsedNums = new Set(orderNumbers.map(n => parseInt(n, 10)));
-    
-    // Busca el siguiente entero correlativo disponible a partir de 0
-    let nextNum = 0;
-    while (parsedNums.has(nextNum)) {
-      nextNum++;
-    }
-
-    return String(nextNum).padStart(6, '0');
+    return data as string;
   },
 
   /** Obtiene todas las órdenes con el cliente embebido (JOIN) */
