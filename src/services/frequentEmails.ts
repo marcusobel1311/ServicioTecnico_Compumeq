@@ -22,11 +22,11 @@ function rowToCustomEmail(row: Record<string, unknown>): CustomFrequentEmail {
 export const frequentEmailsService = {
   // ── TÉCNICOS ────────────────────────────────────────────────
 
-  /** Obtiene técnicos de Supabase (solo los que tienen email válido) */
+  /** Obtiene técnicos de Supabase (solo los activos y con email válido) */
   getTechnicians: async (): Promise<Technician[]> => {
     try {
       const technicians = await dbService.getTechnicians();
-      return technicians.filter(t => t.email && t.email.trim().length > 0);
+      return technicians.filter(t => t.isActive !== false && t.email && t.email.trim().length > 0);
     } catch (err) {
       console.error('Error al cargar técnicos para correos frecuentes:', err);
       return [];

@@ -60,17 +60,22 @@ function rowToPricingItem(row: Record<string, unknown>): PricingItem {
     id:       row.id as string,
     service:  row.service as string,
     priceUSD: Number(row.price_usd),
+    priceBCV: row.price_bcv !== undefined && row.price_bcv !== null && row.price_bcv !== ''
+      ? Number(row.price_bcv)
+      : undefined,
   };
 }
+
 
 /** Convierte una fila de `technicians` al tipo Technician */
 function rowToTechnician(row: Record<string, unknown>): Technician {
   return {
-    id:    row.id as string,
-    name:  row.name as string,
-    ci:    row.ci as string,
-    phone: (row.phone as string) ?? '',
-    email: (row.email as string) ?? '',
+    id:       row.id as string,
+    name:     row.name as string,
+    ci:       row.ci as string,
+    phone:    (row.phone as string) ?? '',
+    email:    (row.email as string) ?? '',
+    isActive: row.is_active !== undefined && row.is_active !== null ? Boolean(row.is_active) : undefined,
   };
 }
 
@@ -329,24 +334,98 @@ export const dbService = {
       .order('service');
 
     if (error) throw new Error(`getPricing: ${error.message}`);
-    return (data ?? []).map(rowToPricingItem);
+    const items = (data ?? []).map(rowToPricingItem);
+
+    // Leer overrides / valores locales de BCV si la columna en BD aún no existe
+    try {
+      const stored = localStorage.getItem('compumeq_pricing_bcv');
+      if (stored) {
+        const overrides: Record<string, number> = JSON.parse(stored);
+        return items.map(item => {
+          const key = item.id || item.service;
+          if (overrides[key] !== undefined && item.priceBCV === undefined) {
+            return { ...item, priceBCV: overrides[key] };
+          }
+          return item;
+        });
+      }
+    } catch {
+      // Ignorar errores de localStorage
+    }
+
+    return items;
   },
 
   /** Inserta un nuevo ítem o actualiza uno existente por id */
   savePricingItem: async (item: PricingItem): Promise<void> => {
+    const payload: Record<string, unknown> = {
+      service: item.service,
+      price_usd: item.priceUSD,
+    };
+
+    if (item.priceBCV !== undefined && !isNaN(item.priceBCV)) {
+      payload.price_bcv = item.priceBCV;
+    }
+
+    const saveLocalBCV = (key: string) => {
+      try {
+        const raw = localStorage.getItem('compumeq_pricing_bcv');
+        const map: Record<string, number> = raw ? JSON.parse(raw) : {};
+        if (item.priceBCV !== undefined && !isNaN(item.priceBCV)) {
+          map[key] = item.priceBCV;
+        } else {
+          delete map[key];
+        }
+        localStorage.setItem('compumeq_pricing_bcv', JSON.stringify(map));
+      } catch {}
+    };
+
     if (item.id) {
       // Actualizar existente
-      const { error } = await supabase
+      let { error } = await supabase
         .from('pricing')
-        .update({ service: item.service, price_usd: item.priceUSD })
+        .update(payload)
         .eq('id', item.id);
+
+      // Si la columna price_bcv no existe aún en la tabla de Supabase, reintentar sin ella
+      if (error && error.message && error.message.includes('price_bcv')) {
+        delete payload.price_bcv;
+        const retry = await supabase
+          .from('pricing')
+          .update(payload)
+          .eq('id', item.id);
+        error = retry.error;
+        if (!error) {
+          saveLocalBCV(item.id);
+        }
+      } else if (!error) {
+        saveLocalBCV(item.id);
+      }
 
       if (error) throw new Error(`savePricingItem (update): ${error.message}`);
     } else {
       // Insertar nuevo
-      const { error } = await supabase
+      let { data, error } = await supabase
         .from('pricing')
-        .insert({ service: item.service, price_usd: item.priceUSD });
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error && error.message && error.message.includes('price_bcv')) {
+        delete payload.price_bcv;
+        const retry = await supabase
+          .from('pricing')
+          .insert(payload)
+          .select()
+          .single();
+        error = retry.error;
+        data = retry.data;
+        if (!error && (data?.id || item.service)) {
+          saveLocalBCV(data?.id || item.service);
+        }
+      } else if (!error && (data?.id || item.service)) {
+        saveLocalBCV(data?.id || item.service);
+      }
 
       if (error) throw new Error(`savePricingItem (insert): ${error.message}`);
     }
@@ -360,6 +439,15 @@ export const dbService = {
       .eq('id', id);
 
     if (error) throw new Error(`deletePricingItem: ${error.message}`);
+
+    try {
+      const raw = localStorage.getItem('compumeq_pricing_bcv');
+      if (raw) {
+        const map: Record<string, number> = JSON.parse(raw);
+        delete map[id];
+        localStorage.setItem('compumeq_pricing_bcv', JSON.stringify(map));
+      }
+    } catch {}
   },
 
   // ── TECHNICIANS ───────────────────────────────────────────
@@ -372,40 +460,132 @@ export const dbService = {
       .order('name');
 
     if (error) throw new Error(`getTechnicians: ${error.message}`);
-    return (data ?? []).map(rowToTechnician);
+    const techs = (data ?? []).map(rowToTechnician);
+
+    // Leer overrides locales si la columna en BD aún no existe
+    try {
+      const stored = localStorage.getItem('compumeq_technicians_status');
+      if (stored) {
+        const overrides: Record<string, boolean> = JSON.parse(stored);
+        return techs.map(t => {
+          if (t.id && overrides[t.id] !== undefined) {
+            return { ...t, isActive: overrides[t.id] };
+          }
+          return { ...t, isActive: t.isActive ?? true };
+        });
+      }
+    } catch {
+      // Ignorar errores de localStorage
+    }
+
+    return techs.map(t => ({ ...t, isActive: t.isActive ?? true }));
   },
 
   /** Inserta o actualiza un técnico */
   saveTechnician: async (technician: Technician): Promise<void> => {
+    const payload: Record<string, unknown> = {
+      name:  technician.name,
+      ci:    technician.ci,
+      phone: technician.phone,
+      email: technician.email,
+    };
+
+    if (technician.isActive !== undefined) {
+      payload.is_active = technician.isActive;
+    }
+
     if (technician.id) {
       // Actualizar existente
-      const { error } = await supabase
+      let { error } = await supabase
         .from('technicians')
-        .update({
-          name:  technician.name,
-          ci:    technician.ci,
-          phone: technician.phone,
-          email: technician.email,
-        })
+        .update(payload)
         .eq('id', technician.id);
+
+      // Si la columna is_active no existe aún en la tabla de Supabase, reintentar sin ella
+      if (error && error.message && error.message.includes('is_active')) {
+        delete payload.is_active;
+        const retry = await supabase
+          .from('technicians')
+          .update(payload)
+          .eq('id', technician.id);
+        error = retry.error;
+
+        // Guardar estado localmente si se especificó
+        if (!error && technician.id && technician.isActive !== undefined) {
+          try {
+            const raw = localStorage.getItem('compumeq_technicians_status');
+            const map: Record<string, boolean> = raw ? JSON.parse(raw) : {};
+            map[technician.id] = technician.isActive;
+            localStorage.setItem('compumeq_technicians_status', JSON.stringify(map));
+          } catch {}
+        }
+      }
 
       if (error) throw new Error(`saveTechnician (update): ${error.message}`);
     } else {
       // Insertar nuevo
-      const { error } = await supabase
+      let { data, error } = await supabase
         .from('technicians')
-        .insert({
-          name:  technician.name,
-          ci:    technician.ci,
-          phone: technician.phone,
-          email: technician.email,
-        });
+        .insert(payload)
+        .select('id')
+        .single();
+
+      if (error && error.message && error.message.includes('is_active')) {
+        delete payload.is_active;
+        const retry = await supabase
+          .from('technicians')
+          .insert(payload)
+          .select('id')
+          .single();
+        error = retry.error;
+        data = retry.data;
+
+        if (!error && data?.id && technician.isActive !== undefined) {
+          try {
+            const raw = localStorage.getItem('compumeq_technicians_status');
+            const map: Record<string, boolean> = raw ? JSON.parse(raw) : {};
+            map[data.id] = technician.isActive;
+            localStorage.setItem('compumeq_technicians_status', JSON.stringify(map));
+          } catch {}
+        }
+      }
 
       if (error) throw new Error(`saveTechnician (insert): ${error.message}`);
     }
   },
 
-  /** Elimina un técnico por id */
+  /** Actualiza únicamente el estado activo/inactivo de un técnico */
+  setTechnicianActive: async (id: string, isActive: boolean): Promise<void> => {
+    let { error } = await supabase
+      .from('technicians')
+      .update({ is_active: isActive })
+      .eq('id', id);
+
+    if (error && error.message && error.message.includes('is_active')) {
+      // Guardar en almacenamiento local como fallback transparente
+      try {
+        const raw = localStorage.getItem('compumeq_technicians_status');
+        const map: Record<string, boolean> = raw ? JSON.parse(raw) : {};
+        map[id] = isActive;
+        localStorage.setItem('compumeq_technicians_status', JSON.stringify(map));
+      } catch (storageErr) {
+        console.error('Error guardando estado local del técnico:', storageErr);
+      }
+      return;
+    }
+
+    // Si tuvo éxito en Supabase, sincronizar también el fallback local
+    try {
+      const raw = localStorage.getItem('compumeq_technicians_status');
+      const map: Record<string, boolean> = raw ? JSON.parse(raw) : {};
+      map[id] = isActive;
+      localStorage.setItem('compumeq_technicians_status', JSON.stringify(map));
+    } catch {}
+
+    if (error) throw new Error(`setTechnicianActive: ${error.message}`);
+  },
+
+  /** Elimina un técnico por id (mantenido por compatibilidad si fuese necesario) */
   deleteTechnician: async (id: string): Promise<void> => {
     const { error } = await supabase
       .from('technicians')

@@ -71,18 +71,20 @@ export default function App() {
     <div className="min-h-screen bg-neutral-50 text-neutral-900 font-sans pb-16 md:pb-0">
       {/* Header - Hidden on print */}
       <header className="bg-white border-b border-neutral-200 print:hidden sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-12 lg:px-16">
-          <div className="flex justify-between h-12 md:h-16 items-center">
-            <div className="flex items-center gap-2.5 md:gap-3">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 md:px-12 lg:px-16">
+          <div className="flex justify-between h-13 md:h-16 items-center gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <img
                 src="/logo_compumeq.png"
                 alt="Logo Compumeq"
-                className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover shadow-xs ring-1 ring-neutral-200"
+                className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover shadow-xs ring-1 ring-neutral-200 shrink-0"
               />
-              <h1 className="text-base sm:text-lg md:text-xl font-bold text-neutral-800 tracking-tight">Servicio Técnico Compumeq</h1>
+              <h1 className="text-sm sm:text-lg md:text-xl font-bold text-neutral-800 tracking-tight truncate">
+                Servicio Técnico Compumeq
+              </h1>
             </div>
 
-            <div className="flex items-center gap-1.5 sm:gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
               {/* Desktop Navigation */}
               <nav className="hidden md:flex space-x-2">
                 <button
@@ -134,7 +136,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-8 md:px-16 lg:px-24 py-6 md:py-8 print:p-0 print:m-0 print:max-w-none">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 md:px-12 lg:px-20 py-4 sm:py-6 md:py-8 print:p-0 print:m-0 print:max-w-none">
         {activeTab === 'form' && <ReceptionForm />}
         {activeTab === 'history' && <ServiceHistory />}
         {activeTab === 'pricing' && <Pricing />}
@@ -142,7 +144,7 @@ export default function App() {
       </main>
 
       {/* Mobile Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 flex justify-around items-center p-2 z-50 print:hidden pb-safe">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 flex justify-around items-center p-1.5 sm:p-2 z-50 print:hidden pb-safe">
         <button
           onClick={() => setActiveTab('form')}
           className={`flex flex-col items-center gap-1 p-2 rounded-md text-xs font-medium transition-colors w-full ${activeTab === 'form' ? 'text-blue-700' : 'text-neutral-500'}`}

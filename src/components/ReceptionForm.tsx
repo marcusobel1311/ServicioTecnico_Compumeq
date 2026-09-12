@@ -412,10 +412,10 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
             <PrintLayout order={order} previewMode={true} />
           </div>
 
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-neutral-200 mt-6">
+          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-neutral-200 mt-6">
             <div className="flex items-center gap-2 mb-4">
               <Mail className="w-5 h-5 text-blue-600" />
-              <h3 className="text-lg font-semibold text-neutral-800">Enviar por Correo</h3>
+              <h3 className="text-base sm:text-lg font-semibold text-neutral-800">Enviar por Correo</h3>
             </div>
 
             <div className="space-y-4">
@@ -489,20 +489,20 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
         </div>
       ) : (
         <div className="print:hidden space-y-5 md:space-y-6">
-          <div className="bg-white p-5 md:p-6 rounded-xl shadow-sm border border-neutral-200 mb-5 md:mb-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4">
+          <div className="bg-white p-4 sm:p-5 md:p-6 rounded-xl shadow-sm border border-neutral-200 mb-5 md:mb-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-base md:text-2xl font-bold text-neutral-800 leading-tight">{allowDateEdit ? 'Registrar Servicio Anterior' : 'Nueva Recepción'}</h2>
+                  <h2 className="text-base sm:text-lg md:text-2xl font-bold text-neutral-800 leading-tight">{allowDateEdit ? 'Registrar Servicio Anterior' : 'Nueva Recepción'}</h2>
                   <p className="hidden md:block text-xs md:text-base text-neutral-500 mt-0.5">Complete los datos para generar la ficha de ingreso.</p>
                 </div>
               </div>
 
-              <div className="flex flex-row flex-wrap gap-2 md:gap-4 items-end">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-2 md:gap-4 items-stretch sm:items-end w-full md:w-auto">
                 {allowDateEdit && (
-                  <>
+                  <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2">
                     <div>
-                      <label className="block text-sm font-medium text-neutral-700 mb-1">Fecha</label>
+                      <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">Fecha</label>
                       <input
                         type="date"
                         value={order.date}
@@ -511,7 +511,7 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-neutral-700 mb-1">Hora</label>
+                      <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">Hora</label>
                       <input
                         type="time"
                         value={order.time}
@@ -519,11 +519,11 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
                         className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                       />
                     </div>
-                  </>
+                  </div>
                 )}
 
-                <div className="min-w-[250px]">
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                <div className="w-full sm:w-auto sm:min-w-[250px]">
+                  <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">
                     Técnico Asignado <span className="text-red-500 font-bold">*</span>
                   </label>
                   <select
@@ -544,9 +544,13 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
                       }`}
                   >
                     <option value="">-- Seleccione un técnico (Obligatorio) --</option>
-                    {technicians.map(tech => (
-                      <option key={tech.id} value={tech.id}>{tech.name}</option>
-                    ))}
+                    {technicians
+                      .filter(tech => tech.isActive !== false || tech.id === order.technicianId)
+                      .map(tech => (
+                        <option key={tech.id} value={tech.id}>
+                          {tech.name}{tech.isActive === false ? ' (Inactivo)' : ''}
+                        </option>
+                      ))}
                   </select>
                   {techError && (
                     <p className="text-xs text-red-600 mt-1 font-medium">Debe seleccionar un técnico asignado.</p>
@@ -556,12 +560,12 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-            <section className="bg-white p-6 rounded-xl shadow-sm border border-neutral-200">
-              <h3 className="text-lg font-semibold text-neutral-800 mb-4 border-b pb-2">Información del Cliente</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-8">
+            <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-neutral-200">
+              <h3 className="text-base sm:text-lg font-semibold text-neutral-800 mb-4 border-b pb-2">Información del Cliente</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">C.I. / RIF</label>
+                  <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">C.I. / RIF</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -580,7 +584,7 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">Nombre y Apellido</label>
+                  <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">Nombre y Apellido</label>
                   <input
                     type="text"
                     value={order.client.name}
@@ -589,9 +593,9 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
                     className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-neutral-400"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">Teléfono</label>
+                    <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">Teléfono</label>
                     <input
                       type="tel"
                       value={order.client.phone}
@@ -601,7 +605,7 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">Email</label>
+                    <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">Email</label>
                     <input
                       type="email"
                       value={order.client.email}
@@ -616,17 +620,17 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
               </div>
             </section>
 
-            <section className="bg-white p-6 rounded-xl shadow-sm border border-neutral-200">
-              <h3 className="text-lg font-semibold text-neutral-800 mb-4 border-b pb-2">Identificación del Equipo</h3>
+            <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-neutral-200">
+              <h3 className="text-base sm:text-lg font-semibold text-neutral-800 mb-4 border-b pb-2">Identificación del Equipo</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">Tipo de Equipo</label>
+                  <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-2">Tipo de Equipo</label>
                   <div className="flex flex-wrap gap-2">
                     {['Laptop', 'Desktop', 'All-in-one', 'Otro'].map(type => (
                       <button
                         key={type}
                         onClick={() => updateEquipment('type', type)}
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${order.equipment.type === type ? 'bg-blue-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+                        className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-colors ${order.equipment.type === type ? 'bg-blue-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
                       >
                         {type}
                       </button>
@@ -642,9 +646,9 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
                     />
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">Marca/Modelo</label>
+                    <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">Marca/Modelo</label>
                     <input
                       type="text"
                       value={order.equipment.brandModel}
@@ -653,7 +657,7 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">Color</label>
+                    <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">Color</label>
                     <input
                       type="text"
                       value={order.equipment.color}
@@ -663,7 +667,7 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">N° de Serie</label>
+                  <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">N° de Serie</label>
                   <input
                     type="text"
                     value={order.equipment.serialNumber}
@@ -671,9 +675,9 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
                     className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4 bg-neutral-50 p-3 rounded-lg border border-neutral-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 bg-neutral-50 p-3 rounded-lg border border-neutral-200">
                   <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">Usuario SO</label>
+                    <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">Usuario SO</label>
                     <input
                       type="text"
                       value={order.equipment.username || ''}
@@ -682,7 +686,7 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">Contraseña</label>
+                    <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">Contraseña</label>
                     <input
                       type="text"
                       value={order.equipment.password || ''}
@@ -692,17 +696,17 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">Accesorios Incluidos</label>
+                  <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-2">Accesorios Incluidos</label>
                   <div className="grid grid-cols-2 gap-2">
                     {['Cargador original', 'Cargador genérico', 'Cable de poder', 'Estuche/Bolso', 'Ninguno', 'Otro'].map(acc => (
-                      <label key={acc} className="flex items-center space-x-2 text-sm text-neutral-700 cursor-pointer">
+                      <label key={acc} className="flex items-center space-x-2 text-xs sm:text-sm text-neutral-700 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={order.equipment.accessories.includes(acc)}
                           onChange={() => toggleEquipmentAccessory(acc)}
                           className="rounded text-blue-600 focus:ring-blue-500"
                         />
-                        <span>{acc}</span>
+                        <span className="truncate">{acc}</span>
                       </label>
                     ))}
                   </div>
@@ -720,8 +724,8 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
             </section>
           </div>
 
-          <section className="bg-white p-6 rounded-xl shadow-sm border border-neutral-200">
-            <h3 className="text-lg font-semibold text-neutral-800 mb-4 border-b pb-2">Inspección Física y Diagnóstico Previo</h3>
+          <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-neutral-200">
+            <h3 className="text-base sm:text-lg font-semibold text-neutral-800 mb-4 border-b pb-2">Inspección Física y Diagnóstico Previo</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="bg-neutral-50 p-4 rounded-lg border border-neutral-200">
                 <h4 className="font-medium text-neutral-800 mb-2">Encendido</h4>
@@ -804,8 +808,8 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
             </div>
           </section>
 
-          <section className="bg-white p-6 rounded-xl shadow-sm border border-neutral-200">
-            <h3 className="text-lg font-semibold text-neutral-800 mb-4 border-b pb-2">Motivo de Ingreso y Trabajo Solicitado</h3>
+          <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-neutral-200">
+            <h3 className="text-base sm:text-lg font-semibold text-neutral-800 mb-4 border-b pb-2">Motivo de Ingreso y Trabajo Solicitado</h3>
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">Motivo de Ingreso (Falla reportada por el cliente)</label>

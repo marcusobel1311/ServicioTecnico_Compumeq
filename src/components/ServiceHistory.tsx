@@ -91,10 +91,10 @@ function RegistrationModal({ order, onClose, onSuccess }: { order: Order; onClos
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-xl shadow-lg max-w-lg w-full p-6 animate-in fade-in zoom-in-95">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4">
+      <div className="bg-white rounded-xl shadow-lg max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 animate-in fade-in zoom-in-95">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold">Registrar Ficha - #{order.orderNumber}</h3>
+          <h3 className="text-base sm:text-lg font-bold">Registrar Ficha - #{order.orderNumber}</h3>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600">
             <X className="w-5 h-5" />
           </button>
@@ -318,15 +318,15 @@ export default function ServiceHistory() {
   }
 
   return (
-    <div className="bg-white p-5 md:p-6 rounded-xl shadow-sm border border-neutral-200">
+    <div className="bg-white p-4 sm:p-5 md:p-6 rounded-xl shadow-sm border border-neutral-200">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-5 md:mb-6 gap-3 md:gap-4">
         <div className="w-full md:w-auto flex justify-between items-center">
           <div>
-            <h2 className="text-base md:text-2xl font-bold text-neutral-800 leading-tight">Historial de Servicios</h2>
+            <h2 className="text-base sm:text-lg md:text-2xl font-bold text-neutral-800 leading-tight">Historial de Servicios</h2>
             <p className="hidden md:block text-xs md:text-base text-neutral-500 mt-0.5">Consulte y filtre las recepciones anteriores.</p>
           </div>
         </div>
-        <div className="flex flex-row gap-1.5 md:gap-3 w-full md:w-auto items-center">
+        <div className="flex flex-row flex-wrap sm:flex-nowrap gap-1.5 md:gap-3 w-full md:w-auto items-center">
           <div className="relative w-full sm:w-72">
             <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
               <Search className="h-3.5 w-3.5 md:h-5 md:w-5 text-neutral-400" />
@@ -527,7 +527,7 @@ export default function ServiceHistory() {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+        <table className="w-full min-w-[680px] text-left border-collapse">
           <thead>
             <tr className="bg-neutral-50 border-y border-neutral-200 text-neutral-600 text-sm">
               <th className="py-3 px-4 font-medium">N° Orden / Fecha</th>

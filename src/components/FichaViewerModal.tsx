@@ -61,21 +61,21 @@ export default function FichaViewerModal({ order, onClose }: FichaViewerModalPro
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden border border-neutral-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200 bg-neutral-50 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
-              <FileText className="w-5 h-5" />
+        <div className="flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 border-b border-neutral-200 bg-neutral-50 flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+              <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-base sm:text-lg font-bold text-neutral-900">
-                  Ficha de Recepción — #{order.orderNumber}
+                <h3 className="text-sm sm:text-base md:text-lg font-bold text-neutral-900 truncate">
+                  Ficha — #{order.orderNumber}
                 </h3>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 shrink-0">
                   Subida
                 </span>
               </div>
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-neutral-500 truncate">
                 Cliente: <span className="font-medium text-neutral-700">{order.client.name}</span> ({order.client.ciRif})
               </p>
             </div>

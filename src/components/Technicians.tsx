@@ -2,16 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { dbService } from '../services/db';
 import { Technician } from '../types';
-import { Plus, Trash2, Edit2, CheckCircle, Loader2 } from 'lucide-react';
+import { Plus, Edit2, CheckCircle, Loader2 } from 'lucide-react';
 
 export default function Technicians() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   
-  const initialFormState: Technician = { name: '', ci: '', phone: '', email: '' };
+  const initialFormState: Technician = { name: '', ci: '', phone: '', email: '', isActive: true };
   const [formData, setFormData] = useState<Technician>(initialFormState);
 
   const toastTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -145,21 +146,36 @@ export default function Technicians() {
   };
 
   const handleEdit = (technician: Technician) => {
-    setFormData(technician);
+    setFormData({
+      ...technician,
+      isActive: technician.isActive !== false
+    });
     setIsEditing(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('¿Está seguro de eliminar este técnico?')) {
-      try {
-        await dbService.deleteTechnician(id);
-        await loadTechnicians();
-        showToast('Técnico eliminado');
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Error al eliminar.';
-        showToast(`⚠️ ${msg}`);
-        console.error('[Technicians] handleDelete:', err);
-      }
+  const handleToggleStatus = async (technician: Technician) => {
+    if (!technician.id) return;
+    const nextStatus = !(technician.isActive !== false);
+
+    // Optimistic UI update
+    setTechnicians(prev =>
+      prev.map(t => (t.id === technician.id ? { ...t, isActive: nextStatus } : t))
+    );
+    setTogglingId(technician.id);
+
+    try {
+      await dbService.setTechnicianActive(technician.id, nextStatus);
+      showToast(`Técnico ${technician.name} ${nextStatus ? 'activado' : 'desactivado'}`);
+    } catch (err) {
+      // Revertir en caso de error
+      setTechnicians(prev =>
+        prev.map(t => (t.id === technician.id ? { ...t, isActive: !nextStatus } : t))
+      );
+      const msg = err instanceof Error ? err.message : 'Error al actualizar el estado.';
+      showToast(`⚠️ ${msg}`);
+      console.error('[Technicians] handleToggleStatus:', err);
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -183,15 +199,15 @@ export default function Technicians() {
           )
         : null}
 
-      <div className="flex flex-row justify-between items-center gap-2 md:gap-4 bg-white p-5 md:p-6 rounded-xl shadow-sm border border-neutral-200">
+      <div className="flex flex-row justify-between items-center gap-2 md:gap-4 bg-white p-4 sm:p-5 md:p-6 rounded-xl shadow-sm border border-neutral-200">
         <div>
-          <h2 className="text-base md:text-2xl font-bold text-neutral-800 leading-tight">Gestión de Técnicos</h2>
-          <p className="hidden md:block text-xs md:text-base text-neutral-500 mt-0.5">Añada y administre el personal técnico.</p>
+          <h2 className="text-base sm:text-lg md:text-2xl font-bold text-neutral-800 leading-tight">Gestión de Técnicos</h2>
+          <p className="hidden md:block text-xs md:text-base text-neutral-500 mt-0.5">Añada y administre el personal técnico activo e inactivo.</p>
         </div>
         {!isEditing && (
           <button
             onClick={() => setIsEditing(true)}
-            className="flex items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 md:px-4 md:py-2 text-xs md:text-base rounded-lg font-medium transition-colors sm:w-auto whitespace-nowrap flex-shrink-0"
+            className="flex items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1.5 md:px-4 md:py-2 text-xs md:text-base rounded-lg font-medium transition-colors sm:w-auto whitespace-nowrap flex-shrink-0"
           >
             <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" />
             <span className="hidden sm:inline">Nuevo Técnico</span>
@@ -201,8 +217,8 @@ export default function Technicians() {
       </div>
 
       {isEditing && (
-        <div className="bg-white p-5 md:p-6 rounded-xl shadow-sm border border-neutral-200">
-          <h3 className="text-lg font-semibold text-neutral-800 mb-4 border-b pb-2">
+        <div className="bg-white p-4 sm:p-5 md:p-6 rounded-xl shadow-sm border border-neutral-200">
+          <h3 className="text-base sm:text-lg font-semibold text-neutral-800 mb-4 border-b pb-2">
             {formData.id ? 'Editar Técnico' : 'Registrar Nuevo Técnico'}
           </h3>
           <form onSubmit={handleSave} className="space-y-4">
@@ -285,41 +301,80 @@ export default function Technicians() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="bg-neutral-50 text-neutral-600 font-medium border-b border-neutral-200">
                 <tr>
                   <th className="px-6 py-3">Nombre</th>
                   <th className="px-6 py-3">Cédula</th>
                   <th className="px-6 py-3">Teléfono</th>
                   <th className="px-6 py-3">Email</th>
+                  <th className="px-6 py-3 text-center">Estado</th>
                   <th className="px-6 py-3 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200">
-                {technicians.map((tech) => (
-                  <tr key={tech.id} className="hover:bg-neutral-50/50">
-                    <td className="px-6 py-4 font-medium text-neutral-800">{tech.name}</td>
-                    <td className="px-6 py-4 text-neutral-600">{tech.ci}</td>
-                    <td className="px-6 py-4 text-neutral-600">{tech.phone}</td>
-                    <td className="px-6 py-4 text-neutral-600">{tech.email}</td>
-                    <td className="px-6 py-4 text-right space-x-2">
-                      <button
-                        onClick={() => handleEdit(tech)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors inline-block"
-                        title="Editar"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => tech.id && handleDelete(tech.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors inline-block"
-                        title="Eliminar"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {technicians.map((tech) => {
+                  const isActive = tech.isActive !== false;
+                  const isTogglingThis = togglingId === tech.id;
+                  
+                  return (
+                    <tr 
+                      key={tech.id} 
+                      className={`transition-colors ${isActive ? 'hover:bg-neutral-50/50' : 'bg-neutral-50/70 opacity-75 hover:bg-neutral-100/50'}`}
+                    >
+                      <td className="px-6 py-4 font-medium text-neutral-800">
+                        <div className="flex items-center gap-2">
+                          <span className={isActive ? 'text-neutral-900 font-semibold' : 'text-neutral-500 line-through decoration-neutral-400'}>
+                            {tech.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-neutral-600">{tech.ci}</td>
+                      <td className="px-6 py-4 text-neutral-600">{tech.phone || '—'}</td>
+                      <td className="px-6 py-4 text-neutral-600">{tech.email || '—'}</td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          {/* Switch toggle moderno */}
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={isActive}
+                            disabled={isTogglingThis}
+                            onClick={() => handleToggleStatus(tech)}
+                            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                              isActive ? 'bg-green-500' : 'bg-neutral-300'
+                            } ${isTogglingThis ? 'opacity-50 cursor-wait' : ''}`}
+                            title={isActive ? 'Desactivar técnico' : 'Activar técnico'}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                                isActive ? 'translate-x-5' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                          
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full inline-block min-w-[65px] text-center ${
+                            isActive 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-neutral-200 text-neutral-600'
+                          }`}>
+                            {isActive ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => handleEdit(tech)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors inline-block"
+                          title="Editar información del técnico"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

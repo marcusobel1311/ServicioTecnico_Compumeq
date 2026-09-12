@@ -4,6 +4,7 @@ export interface Technician {
   ci: string;
   phone: string;
   email: string;
+  isActive?: boolean;
 }
 
 export interface Client {
@@ -71,4 +72,5 @@ export interface PricingItem {
   id?: string;
   service: string;
   priceUSD: number;
+  priceBCV?: number;
 }
