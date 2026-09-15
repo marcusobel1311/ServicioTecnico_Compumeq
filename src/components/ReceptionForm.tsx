@@ -4,9 +4,11 @@ import { dbService } from '../services/db';
 import { sendEmailWithPdf } from '../services/notifications';
 import { generateReceptionOrderPdf } from '../services/pdfGenerator';
 import { Order, Technician } from '../types';
-import { Printer, CheckCircle, Search, Loader2, ArrowLeft, Check, Plus, X, Mail } from 'lucide-react';
+import { Printer, CheckCircle, Loader2, ArrowLeft, Check, Plus, X, Mail, User } from 'lucide-react';
 import PrintLayout from './PrintLayout';
 import FrequentEmailInput from './FrequentEmailInput';
+import ClientPickerModal from './ClientPickerModal';
+import { useArrowNavigation } from '../lib/useArrowNavigation';
 
 const getEmptyOrder = (): Order => ({
   orderNumber: '',
@@ -31,6 +33,10 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
   const [isSaving, setIsSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [isSearchingClient, setIsSearchingClient] = useState(false);
+  // true = el CI/RIF tipeado coincide con un cliente ya registrado en BD
+  const [clientFound, setClientFound] = useState(false);
+  // Controla apertura del modal selector de clientes
+  const [isClientPickerOpen, setIsClientPickerOpen] = useState(false);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [techError, setTechError] = useState(false);
   const [isPreview, setIsPreview] = useState(false);
@@ -39,6 +45,9 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
     subject: 'Ficha de Recepción de Equipo',
     message: 'Adjunto enviamos la ficha de recepción de su equipo.'
   });
+  // Navegación por teclado con flechas direccionales en formulario y vista previa
+  const formNavRef = useArrowNavigation<HTMLDivElement>();
+  const previewNavRef = useArrowNavigation<HTMLDivElement>();
   // Ref para evitar actualizaciones de estado después del desmontaje del componente.
   const isMounted = React.useRef(true);
   const toastTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -58,14 +67,54 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
   const handleClientSearch = async () => {
     if (!order.client.ciRif) return;
     setIsSearchingClient(true);
-    const client = await dbService.findClientByCiRif(order.client.ciRif);
-    if (client) {
-      setOrder(prev => ({ ...prev, client }));
-      showToast('Cliente encontrado y auto-completado');
-    } else {
-      showToast('Cliente no encontrado, registre los datos');
+    try {
+      const client = await dbService.findClientByCiRif(order.client.ciRif);
+      if (client) {
+        setOrder(prev => ({ ...prev, client }));
+        setClientFound(true);
+        showToast('✅ Cliente encontrado y auto-completado');
+      } else {
+        // Limpiar flag si el usuario cambió la cédula a una que no existe
+        setClientFound(false);
+        showToast('Cliente no encontrado, registre los datos');
+      }
+    } catch (err) {
+      console.error('[ReceptionForm] handleClientSearch:', err);
+      setClientFound(false);
+    } finally {
+      setIsSearchingClient(false);
     }
-    setIsSearchingClient(false);
+  };
+
+  /** Se dispara al salir del campo C.I./RIF para hacer la búsqueda automáticamente */
+  const handleCIBlur = async () => {
+    const ci = order.client.ciRif;
+    // Solo buscar si el campo tiene un valor con al menos 5 caracteres (prefijo + números mínimos)
+    if (!ci || ci.length < 5) return;
+    // No repetir búsqueda si ya encontramos el cliente y la cédula no cambió
+    if (clientFound) return;
+    await handleClientSearch();
+  };
+
+  /**
+   * Callback del ClientPickerModal: autocompleta el formulario con el cliente
+   * seleccionado y deshabilita los campos para edición directa.
+   */
+  const handleSelectClient = (client: import('../types').Client) => {
+    setOrder(prev => ({ ...prev, client }));
+    setClientFound(true);
+    showToast('✅ Cliente seleccionado y datos auto-completados');
+  };
+
+  /**
+   * Callback del ClientPickerModal: si el cliente editado es el actualmente
+   * cargado en el formulario, actualiza sus datos en tiempo real.
+   */
+  const handleClientUpdated = (updated: import('../types').Client) => {
+    if (order.client.id && order.client.id === updated.id) {
+      setOrder(prev => ({ ...prev, client: updated }));
+      showToast('✅ Datos del cliente actualizados');
+    }
   };
 
   const showToast = (msg: string) => {
@@ -93,7 +142,38 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
   };
 
   const handlePreview = async () => {
-    // 1. Validación obligatoria de Selección de Técnico
+    // 1. Validación obligatoria de Datos del Cliente
+    if (!order.client.name.trim()) {
+      showToast('⚠️ El Nombre y Apellido del cliente es obligatorio.');
+      return;
+    }
+    const ciDigits = (order.client.ciRif || '').replace(/\D/g, '');
+    if (!order.client.ciRif.trim() || ciDigits.length < 5) {
+      showToast('⚠️ Ingrese una Cédula o RIF válido (mínimo 5 dígitos).');
+      return;
+    }
+    if (!order.client.phone.trim()) {
+      showToast('⚠️ El Teléfono del cliente es obligatorio.');
+      return;
+    }
+    const phoneDigits = order.client.phone.replace(/\D/g, '');
+    const phoneWithout58 = phoneDigits.startsWith('58') ? phoneDigits.slice(2) : phoneDigits;
+    if (phoneWithout58.length < 10) {
+      showToast('⚠️ Ingrese un número de teléfono completo (+58 4XX-XXX-XXXX).');
+      return;
+    }
+    if (!order.client.email.trim()) {
+      showToast('⚠️ El Email del cliente es obligatorio.');
+      return;
+    }
+    const emailTrimmed = order.client.email.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailTrimmed) || !emailTrimmed.toLowerCase().endsWith('.com')) {
+      showToast('⚠️ El correo del cliente debe tener un formato válido y terminar en .com');
+      return;
+    }
+
+    // 2. Validación obligatoria de Selección de Técnico
     if (!order.technicianId) {
       setTechError(true);
       showToast('⚠️ La selección de un Técnico Asignado es obligatoria.');
@@ -230,6 +310,8 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
   };
 
   const updateClient = (field: keyof Order['client'], value: string) => {
+    // Al cambiar el campo ci_rif, reiniciar el flag de cliente encontrado
+    if (field === 'ciRif') setClientFound(false);
     setOrder(prev => ({ ...prev, client: { ...prev.client, [field]: value } }));
   };
 
@@ -391,7 +473,7 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
         : null}
 
       {isPreview ? (
-        <div className="print:hidden space-y-6 animate-in fade-in zoom-in-95 duration-200">
+        <div ref={previewNavRef} className="print:hidden space-y-6 animate-in fade-in zoom-in-95 duration-200">
           <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-neutral-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <div>
               <h2 className="text-xl sm:text-2xl font-bold text-neutral-800">Vista Previa</h2>
@@ -488,7 +570,7 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
           </div>
         </div>
       ) : (
-        <div className="print:hidden space-y-5 md:space-y-6">
+        <div ref={formNavRef} className="print:hidden space-y-5 md:space-y-6">
           <div className="bg-white p-4 sm:p-5 md:p-6 rounded-xl shadow-sm border border-neutral-200 mb-5 md:mb-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4">
               <div className="flex items-center justify-between">
@@ -562,50 +644,111 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-8">
             <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-neutral-200">
-              <h3 className="text-base sm:text-lg font-semibold text-neutral-800 mb-4 border-b pb-2">Información del Cliente</h3>
+              {/* Encabezado con ícono de persona para abrir el selector de clientes */}
+              <div className="flex items-center justify-between mb-4 border-b pb-2">
+                <h3 className="text-base sm:text-lg font-semibold text-neutral-800">Información del Cliente</h3>
+                <button
+                  type="button"
+                  onClick={() => setIsClientPickerOpen(true)}
+                  title="Buscar o seleccionar cliente registrado"
+                  aria-label="Abrir selector de clientes"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg shadow-blue-500/30 transition-all active:scale-95 cursor-pointer"
+                >
+                  <User className="w-4 h-4" />
+                  <span>Buscar Cliente</span>
+                </button>
+              </div>
+
+              {/* Indicador visual cuando el cliente fue seleccionado / encontrado */}
+              {clientFound && (
+                <div className="mb-3 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
+                  <span className="flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="font-medium">Cliente cargado.</span>
+                    <span className="text-blue-600">Para editar, usa el ícono 👤 de arriba.</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClientFound(false);
+                      setOrder(prev => ({ ...prev, client: { name: '', ciRif: '', phone: '', email: '' } }));
+                    }}
+                    className="flex-shrink-0 text-blue-500 hover:text-blue-700 underline font-medium transition-colors"
+                    title="Limpiar selección"
+                  >
+                    Cambiar
+                  </button>
+                </div>
+              )}
+
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">C.I. / RIF</label>
+                  <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">
+                    C.I. / RIF <span className="text-red-500 font-bold">*</span>
+                  </label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={order.client.ciRif}
                       onChange={handleCIChange}
-                      className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-neutral-400"
+                      onBlur={handleCIBlur}
+                      required
+                      disabled={clientFound}
+                      className={`flex-1 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-neutral-400 transition-colors ${
+                        clientFound
+                          ? 'border-neutral-200 bg-neutral-50 text-neutral-500 cursor-not-allowed'
+                          : 'border-neutral-300 bg-white'
+                      }`}
                       placeholder="Ej. V-12.345.678 / J-12345678-9"
                     />
-                    <button
-                      onClick={handleClientSearch}
-                      disabled={isSearchingClient}
-                      className="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 px-3 py-2 rounded-md transition-colors flex items-center"
-                    >
-                      {isSearchingClient ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
-                    </button>
+                    {isSearchingClient && (
+                      <div className="flex items-center px-3">
+                        <Loader2 className="w-5 h-5 animate-spin text-neutral-400" />
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">Nombre y Apellido</label>
+                  <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">
+                    Nombre y Apellido <span className="text-red-500 font-bold">*</span>
+                  </label>
                   <input
                     type="text"
                     value={order.client.name}
                     onChange={e => updateClient('name', e.target.value)}
                     placeholder="Ej. Juan Pérez"
-                    className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-neutral-400"
+                    required
+                    disabled={clientFound}
+                    className={`w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-neutral-400 transition-colors ${
+                      clientFound
+                        ? 'border-neutral-200 bg-neutral-50 text-neutral-500 cursor-not-allowed'
+                        : 'border-neutral-300 bg-white'
+                    }`}
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
-                    <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">Teléfono</label>
+                    <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">
+                      Teléfono <span className="text-red-500 font-bold">*</span>
+                    </label>
                     <input
                       type="tel"
                       value={order.client.phone}
                       onChange={handlePhoneChange}
                       placeholder="Ej. +58 412-123-4567"
-                      className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-neutral-400"
+                      required
+                      disabled={clientFound}
+                      className={`w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-neutral-400 transition-colors ${
+                        clientFound
+                          ? 'border-neutral-200 bg-neutral-50 text-neutral-500 cursor-not-allowed'
+                          : 'border-neutral-300 bg-white'
+                      }`}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">Email</label>
+                    <label className="block text-xs sm:text-sm font-medium text-neutral-700 mb-1">
+                      Email <span className="text-red-500 font-bold">*</span>
+                    </label>
                     <input
                       type="email"
                       value={order.client.email}
@@ -613,12 +756,26 @@ export default function ReceptionForm({ allowDateEdit = false, onSave }: { allow
                       pattern=".*\.com"
                       title="El correo debe terminar en .com"
                       placeholder="Ej. juan.perez@email.com"
-                      className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-neutral-400"
+                      required
+                      disabled={clientFound}
+                      className={`w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-neutral-400 transition-colors ${
+                        clientFound
+                          ? 'border-neutral-200 bg-neutral-50 text-neutral-500 cursor-not-allowed'
+                          : 'border-neutral-300 bg-white'
+                      }`}
                     />
                   </div>
                 </div>
               </div>
             </section>
+
+            {/* Modal selector de clientes — renderizado via portal */}
+            <ClientPickerModal
+              isOpen={isClientPickerOpen}
+              onClose={() => setIsClientPickerOpen(false)}
+              onSelectClient={handleSelectClient}
+              onClientUpdated={handleClientUpdated}
+            />
 
             <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-neutral-200">
               <h3 className="text-base sm:text-lg font-semibold text-neutral-800 mb-4 border-b pb-2">Identificación del Equipo</h3>

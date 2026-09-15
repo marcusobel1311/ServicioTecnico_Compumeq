@@ -130,17 +130,20 @@ export const dbService = {
    * Devuelve la Order con el id asignado por la BD.
    */
   saveOrder: async (order: Order): Promise<Order> => {
-    // 1 — Upsert del cliente
+    // 1 — Upsert del cliente (insert si no existe; actualiza todos los campos si ya existe)
     const { data: clientData, error: clientError } = await supabase
       .from('clients')
       .upsert(
         {
+          // Si el cliente ya tiene id (fue autocompletado desde la BD),
+          // incluirlo para que el upsert actualice ese registro en lugar de crear uno nuevo.
+          ...(order.client.id ? { id: order.client.id } : {}),
           name:   order.client.name,
           ci_rif: order.client.ciRif,
           phone:  order.client.phone,
           email:  order.client.email,
         },
-        { onConflict: 'ci_rif' }
+        { onConflict: 'ci_rif', ignoreDuplicates: false }
       )
       .select('id')
       .single();
@@ -295,16 +298,51 @@ export const dbService = {
     return (data ?? []).map(rowToClient);
   },
 
-  /** Busca un cliente por su C.I. o RIF (búsqueda exacta) */
+  /** Busca un cliente por su C.I. o RIF.
+   * Estrategia 1: búsqueda exacta (más rápida).
+   * Estrategia 2 (fallback): búsqueda ilike normalizada para tolerar
+   * pequeñas variaciones de formato (espacios, mayúsculas).
+   */
   findClientByCiRif: async (ciRif: string): Promise<Client | null> => {
-    const { data, error } = await supabase
+    const trimmed = ciRif.trim();
+
+    // 1️⃣ Búsqueda exacta
+    const { data: exact, error: exactError } = await supabase
       .from('clients')
       .select('*')
-      .eq('ci_rif', ciRif)
+      .eq('ci_rif', trimmed)
       .maybeSingle();
 
-    if (error) throw new Error(`findClientByCiRif: ${error.message}`);
-    return data ? rowToClient(data as Record<string, unknown>) : null;
+    if (exactError) throw new Error(`findClientByCiRif (exact): ${exactError.message}`);
+    if (exact) return rowToClient(exact as Record<string, unknown>);
+
+    // 2️⃣ Fallback: búsqueda insensible a mayúsculas / minúsculas
+    const { data: fuzzy, error: fuzzyError } = await supabase
+      .from('clients')
+      .select('*')
+      .ilike('ci_rif', trimmed)
+      .maybeSingle();
+
+    if (fuzzyError) throw new Error(`findClientByCiRif (fuzzy): ${fuzzyError.message}`);
+    return fuzzy ? rowToClient(fuzzy as Record<string, unknown>) : null;
+  },
+
+  /** Actualiza los datos mutables de un cliente existente (name, ciRif, phone, email). */
+  updateClient: async (id: string, updates: Partial<Pick<Client, 'name' | 'ciRif' | 'phone' | 'email'>>): Promise<void> => {
+    const payload: Record<string, unknown> = {};
+    if (updates.name  !== undefined) payload.name   = updates.name;
+    if (updates.ciRif !== undefined) payload.ci_rif = updates.ciRif;
+    if (updates.phone !== undefined) payload.phone  = updates.phone;
+    if (updates.email !== undefined) payload.email  = updates.email;
+
+    if (Object.keys(payload).length === 0) return;
+
+    const { error } = await supabase
+      .from('clients')
+      .update(payload)
+      .eq('id', id);
+
+    if (error) throw new Error(`updateClient: ${error.message}`);
   },
 
   /** Inserta o actualiza un cliente por ci_rif */

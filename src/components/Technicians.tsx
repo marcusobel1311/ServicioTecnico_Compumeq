@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { dbService } from '../services/db';
 import { Technician } from '../types';
 import { Plus, Edit2, CheckCircle, Loader2 } from 'lucide-react';
+import { useArrowNavigation } from '../lib/useArrowNavigation';
 
 export default function Technicians() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
@@ -184,8 +185,10 @@ export default function Technicians() {
     setIsEditing(false);
   };
 
+  const navRef = useArrowNavigation<HTMLDivElement>();
+
   return (
-    <div className="space-y-6">
+    <div ref={navRef} className="space-y-6">
       {typeof document !== 'undefined' && toastMessage
         ? createPortal(
             <div

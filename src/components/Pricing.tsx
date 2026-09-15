@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/db';
 import { PricingItem } from '../types';
 import { DollarSign, Cpu, Plus, X, Edit, Trash2 } from 'lucide-react';
+import { useArrowNavigation } from '../lib/useArrowNavigation';
 
 export default function Pricing() {
   const [pricing, setPricing] = useState<PricingItem[]>([]);
@@ -85,8 +86,10 @@ export default function Pricing() {
     }
   };
 
+  const navRef = useArrowNavigation<HTMLDivElement>();
+
   return (
-    <div className="max-w-4xl mx-auto">
+    <div ref={navRef} className="max-w-4xl mx-auto">
       <div className="bg-white p-4 sm:p-5 md:p-6 rounded-xl shadow-sm border border-neutral-200">
         <div className="flex flex-row items-center justify-between gap-2 md:gap-4 mb-5 md:mb-6 border-b pb-4">
           <div className="flex items-center gap-1.5 md:gap-3">

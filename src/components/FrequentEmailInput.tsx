@@ -123,7 +123,9 @@ export default function FrequentEmailInput({
     }
 
     try {
-      await frequentEmailsService.addCustomEmail(trimmed, newLabel.trim());
+      const newItem = await frequentEmailsService.addCustomEmail(trimmed, newLabel.trim());
+      // Actualizar el estado local de forma inmediata (optimistic update)
+      setCustomEmails(prev => [newItem, ...prev]);
       setNewEmail('');
       setNewLabel('');
       setIsCreating(false);
@@ -155,6 +157,14 @@ export default function FrequentEmailInput({
 
     try {
       await frequentEmailsService.updateCustomEmail(id, trimmed, editLabel.trim());
+      // Actualizar el estado local de forma inmediata
+      setCustomEmails(prev =>
+        prev.map(item =>
+          item.id === id
+            ? { ...item, email: trimmed, label: editLabel.trim() || undefined }
+            : item
+        )
+      );
       setEditingId(null);
     } catch {
       setFormError('Error al actualizar el correo. Intenta nuevamente.');
@@ -164,13 +174,16 @@ export default function FrequentEmailInput({
   const handleDeleteCustomEmail = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm('¿Deseas eliminar este correo frecuente personalizado?')) {
+      // Eliminar del estado local de forma inmediata (antes de la llamada async)
+      setCustomEmails(prev => prev.filter(item => item.id !== id));
+      if (editingId === id) setEditingId(null);
+
       try {
         await frequentEmailsService.deleteCustomEmail(id);
-        if (editingId === id) {
-          setEditingId(null);
-        }
       } catch (err) {
         console.error('Error al eliminar correo frecuente:', err);
+        // Si falla, recargar para mostrar el estado real
+        frequentEmailsService.getCustomEmails().then(setCustomEmails);
       }
     }
   };

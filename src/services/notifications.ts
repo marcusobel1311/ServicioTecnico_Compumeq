@@ -68,9 +68,12 @@ export async function sendEmailWithPdf(payload: EmailPayload): Promise<void> {
   const json = await response.json().catch(() => ({})) as { success?: boolean; message?: string };
 
   if (!response.ok || !json.success) {
-    throw new Error(
-      `Error al enviar correo: ${json.message ?? response.statusText}`
+    const errorMsg = json.message || (
+      response.status === 500
+        ? 'El servidor local de correos (Api correo, puerto 3001) no responde o está apagado. Asegúrese de iniciarlo con "iniciar-sistema.bat" o ejecutando "npm start" en la carpeta "Api correo".'
+        : response.statusText
     );
+    throw new Error(`Error al enviar correo: ${errorMsg}`);
   }
 }
 
